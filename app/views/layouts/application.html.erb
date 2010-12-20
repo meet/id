@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ID</title>
+  <meta http-equiv="X-XRDS-Location" content="<%= @xrds_url %>" />
+  <link rel="openid.server" href="<%= openid_url %>" />
+  <%= stylesheet_link_tag :all %>
+  <%= csrf_meta_tag %>
+</head>
+<body>
+
+<%= yield %>
+
+</body>
+</html>
