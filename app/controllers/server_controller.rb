@@ -51,7 +51,7 @@ class ServerController < ApplicationController
       axresponse = FetchResponse.new
       axreq.attributes.each do |attrib|
         if AX_USER_MAP.has_key? attrib.type_uri
-          axresponse.set_values(attrib.type_uri, @user.send(AX_USER_MAP[attrib.type_uri]))
+          axresponse.set_values(attrib.type_uri, [ @user.send(AX_USER_MAP[attrib.type_uri]) ].flatten)
         end
       end
       response.add_extension(axresponse)

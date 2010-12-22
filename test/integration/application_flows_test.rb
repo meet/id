@@ -37,7 +37,7 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     assert_response :redirect
     assert_match /^http:\/\/localhost:8001\/return\?/, response.redirect_url
     params = Rack::Utils.parse_query(response.redirect_url)
-    assert_match "http://#{request.host}/abeer", params['openid.identity']
+    assert_equal "http://#{request.host}/abeer", params['openid.identity']
   end
   
   CHECKID_AND_GROUPS = CHECKID.merge({
@@ -61,8 +61,8 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     'openid.ax.required' => 'username,groups'
   })
   
-  def ns_alias_for(params, uri)
-    params.find { |x, v| v == uri } [0].sub('.type.', '.value.')
+  def ns_key(params, uri, type)
+    params.find { |x, v| v == uri } [0].sub('.type.', ".#{type}.")
   end
   
   test "login then get attributes via session" do
@@ -78,8 +78,9 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     post openid_url, CHECKID_AND_ATTRS
     assert_response :redirect
     params = Rack::Utils.parse_query(response.redirect_url)
-    assert_match 'aleksandra', params[ns_alias_for(params, AXSchema::Username) + '.1']
-    assert_match 'allstaff', params[ns_alias_for(params, AXSchema::Groups) + '.1']
+    assert_equal '1', params[ns_key(params, AXSchema::Username, 'count')]
+    assert_equal 'aleksandra', params[ns_key(params, AXSchema::Username, 'value') + '.1']
+    assert_equal 'allstaff', params[ns_key(params, AXSchema::Groups, 'value') + '.1']
   end
   
 end
