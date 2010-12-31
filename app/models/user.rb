@@ -18,4 +18,8 @@ class User
     end
   end
   
+  def groups_csv
+    groups.join(',')
+  end
+  
 end

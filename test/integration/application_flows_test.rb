@@ -58,7 +58,8 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
   
   CHECKID_AND_ATTRS = CHECKID_AND_GROUPS.merge({
     'openid.ax.type.username' => 'http://axschema.org/namePerson/friendly',
-    'openid.ax.required' => 'username,groups'
+    'openid.ax.type.groups-csv' => 'http://id.meet.mit.edu/schema/groups-csv',
+    'openid.ax.required' => 'username,groups,groups-csv'
   })
   
   def ns_key(params, uri, type)
@@ -81,6 +82,7 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     assert_equal '1', params[ns_key(params, AXSchema::Username, 'count')]
     assert_equal 'aleksandra', params[ns_key(params, AXSchema::Username, 'value') + '.1']
     assert_equal 'allstaff', params[ns_key(params, AXSchema::Groups, 'value') + '.1']
+    assert_match /.*allstaff,.*mit/, params[ns_key(params, AXSchema::GroupsCsv, 'value') + '.1']
   end
   
 end

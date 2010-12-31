@@ -11,7 +11,8 @@ class ServerController < ApplicationController
   include OpenID::AX
   AX_USER_MAP = {
     AXSchema::Username => :username,
-    AXSchema::Groups => :groups
+    AXSchema::Groups => :groups,
+    AXSchema::GroupsCsv => :groups_csv
   }
   
   # Handle a request to the OpenID endpoint.

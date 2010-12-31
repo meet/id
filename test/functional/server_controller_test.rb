@@ -11,6 +11,9 @@ class ServerControllerTest < ActionController::TestCase
     
     Directory.mock_user('bob', [ 'one', 'two' ])
     @bob_id = "http://#{request.host}/bob"
+    
+    Directory.mock_user('ted', (1..40).map { |n| "group-#{n}"} )
+    @ted_id = "http://#{request.host}/ted"
   end
   
   def teardown
@@ -134,6 +137,27 @@ class ServerControllerTest < ActionController::TestCase
     assert_equal '2', params['openid.ax.count.ext0']
     assert_equal 'one', params['openid.ax.value.ext0.1']
     assert_equal 'two', params['openid.ax.value.ext0.2']
+  end
+  
+  test "should present form with many groups" do
+    Directory.mock_app(LOCALHOST)
+    request.env['REMOTE_USER'] = 'ted'
+    get :login, CHECKID_AND_GROUPS
+    assert_response :success
+    assert_select "form[action=#{LOCALHOST}]"
+    assert_select "input[name=openid.ax.value.ext0.40]", 1 do |elts|
+      assert_equal 'group-40', elts[0]['value']
+    end
+  end
+  
+  test "should avoid form with compact groups" do
+    Directory.mock_app(LOCALHOST)
+    request.env['REMOTE_USER'] = 'ted'
+    get :login, CHECKID_AND_GROUPS.merge('openid.ax.type.groups' => 'http://id.meet.mit.edu/schema/groups-csv')
+    assert_response :redirect
+    assert_match /^#{LOCALHOST}/, response.redirect_url
+    params = parse_query(response.redirect_url)
+    assert_match /group-1,group-2,.*,group-40/, params['openid.ax.value.ext0.1']
   end
   
 end
