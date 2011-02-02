@@ -46,4 +46,7 @@ Id::Application.configure do
 
   # Send deprecation notices to registered listeners
   config.active_support.deprecation = :notify
+  
+  # Use secure session cookie
+  config.session_store :cookie_store, :key => '_id_session', :secure => true
 end

@@ -2,3 +2,10 @@ body {
   font-family: sans-serif;
   margin: 1in;
 }
+
+form div { margin-bottom: 1em; }
+label.fallback { display: none; }
+label, input { font-size: 18pt; }
+input[type="submit"] {
+  -webkit-appearance: button;
+}

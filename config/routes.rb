@@ -1,7 +1,7 @@
 Id::Application.routes.draw do
   
   match 'openid' => 'server#openid', :as => :openid
-  match 'login' => 'server#login', :as => :login
+  post 'login' => 'server#login', :as => :login
   
   root :to => 'discovery#idp'
   match 'xrds' => 'discovery#idp.xrds_xml', :as => :idp_xrds

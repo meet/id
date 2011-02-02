@@ -23,25 +23,9 @@ Id::Application.configure do
   # Only use best-standards-support built into browsers
   config.action_dispatch.best_standards_support = :builtin
   
-  class Development
-    def initialize(app)
-      @app = app
-      @auth = Rack::Auth::Basic.new(app, "Development") { |username, password|
-        password == Time.now.min.to_s
-      }
-    end
-    def call(env)
-      # Assume LDAP is port forwarded
-      Directory.connect_with(:port => 3389)
-      
-      # Simulate Apache authentication
-      if /\/login/ =~ env['PATH_INFO']
-        @auth.call(env)
-      else
-        @app.call(env)
-      end
-    end
-  end
-  config.middleware.use Development
+  # Assume LDAP is port forwarded
+  Directory.connect_with(:port => 3389)
   
+  # Don't use secure session cookie
+  config.session_store :cookie_store, :key => '_id_session', :secure => false
 end

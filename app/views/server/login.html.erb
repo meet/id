@@ -1,0 +1,19 @@
+<p><%= flash[:message] %></p>
+
+<%= form_for :login, :url => login_path do |f| %>
+  
+  <div>
+  <%= f.label :username, :class => 'fallback' %>
+  <%= f.text_field :username, :size => 12, :placeholder => 'username' %>
+  </div>
+  
+  <div>
+  <%= f.label :password, :class => 'fallback' %>
+  <%= f.password_field :password, :size => 12, :placeholder => 'password' %>
+  </div>
+  
+  <div>
+  <%= f.submit 'Log in' %>
+  </div>
+  
+<% end %>

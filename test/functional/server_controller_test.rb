@@ -1,23 +1,30 @@
 require 'test_helper'
-require 'mock_directory'
 
 class ServerControllerTest < ActionController::TestCase
   
-  include Rack::Utils
-  
   def setup
-    Directory.mock_user('eve', [ 'foo' ])
+    Directory.connection.mock_user(:uid => 'eve')
+    Directory.connection.mock_group(:cn => 'foo', :memberuid => [ 'eve' ])
+    Directory.connection.mock_bind('eve', 'secret')
+    @eve_login = { :login => { :username => 'eve', :password => 'secret' } }
     @eve_id = "http://#{request.host}/eve"
     
-    Directory.mock_user('bob', [ 'one', 'two' ])
+    Directory.connection.mock_user(:uid => 'bob')
+    Directory.connection.mock_group(:cn => 'one', :memberuid => [ 'bob' ])
+    Directory.connection.mock_group(:cn => 'two', :memberuid => [ 'bob' ])
+    Directory.connection.mock_bind('bob', 'secret')
+    @bob_login = { :login => { :username => 'bob', :password => 'secret' } }
     @bob_id = "http://#{request.host}/bob"
     
-    Directory.mock_user('ted', (1..40).map { |n| "group-#{n}"} )
+    Directory.connection.mock_user(:uid => 'ted')
+    (1..40).each { |n| Directory.connection.mock_group(:cn => "group-#{n}", :memberuid => [ 'ted' ]) }
+    Directory.connection.mock_bind('ted', 'secret')
+    @ted_login = { :login => { :username => 'ted', :password => 'secret' } }
     @ted_id = "http://#{request.host}/ted"
   end
   
   def teardown
-    Directory.empty
+    Directory.connection.clear_mocks
   end
   
   LOCALHOST = 'http://localhost:8001/return'
@@ -31,57 +38,104 @@ class ServerControllerTest < ActionController::TestCase
   
   test "should require login" do
     post :openid, CHECKID
-    assert_redirected_to login_url(CHECKID)
+    assert_response :success
+    assert_template :login
   end
   
   test "should allow via session" do
-    Directory.mock_app(LOCALHOST)
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
     request.session[:username] = 'eve'
+    request.session[:valid] = Time.now + 1.minute
     post :openid, CHECKID
     assert_response :redirect
     assert_match /^#{LOCALHOST}/, response.redirect_url
     assert_equal @eve_id, parse_query(response.redirect_url)['openid.identity']
   end
   
-  test "should deny via session" do
-    Directory.mock_app('http://other.host/')
+  test "should require login for expired session" do
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
     request.session[:username] = 'eve'
+    request.session[:valid] = Time.now - 1.minute
+    post :openid, CHECKID
+    assert_response :success
+    assert_template :login
+  end
+  
+  test "should deny immediate expired session" do
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    request.session[:username] = 'eve'
+    request.session[:valid] = Time.now - 1.minute
+    post :openid, CHECKID.merge('openid.mode' => 'checkid_immediate')
+    assert_response :redirect
+    assert_match /^#{LOCALHOST}/, response.redirect_url
+    assert_equal 'setup_needed', parse_query(response.redirect_url)['openid.mode']
+  end
+  
+  test "should deny unknown site via session" do
+    Directory.connection.mock_app(:ou => 'http://other.host/', :labeleduri => 'http://other.host/')
+    request.session[:username] = 'eve'
+    request.session[:valid] = Time.now + 1.minute
     post :openid, CHECKID
     assert_response :success
     assert_template :unknown_site
   end
   
-  test "should allow via login" do
-    Directory.mock_app(LOCALHOST)
-    request.env['REMOTE_USER'] = 'eve'
-    get :login, CHECKID
+  test "should allow via prompted login" do
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :openid, CHECKID
+    assert_response :success
+    assert_template :login
+    post :login, @eve_login
     assert_response :redirect
     assert_match /^#{LOCALHOST}/, response.redirect_url
     assert_equal @eve_id, parse_query(response.redirect_url)['openid.identity']
   end
   
-  test "should deny via login" do
-    Directory.mock_app('http://other.host/')
-    request.env['REMOTE_USER'] = 'eve'
-    get :login, CHECKID
+  test "should allow via posted login" do
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :login, CHECKID.merge(@eve_login)
+    assert_response :redirect
+    assert_match /^#{LOCALHOST}/, response.redirect_url
+    assert_equal @eve_id, parse_query(response.redirect_url)['openid.identity']
+  end
+  
+  test "should deny via bad logins then allow" do
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :openid, CHECKID
+    for params in [ { },
+                    { :login => { } },
+                    { :login => { :username => 'eve' } },
+                    { :login => { :username => 'eve', :password => 'wrong' } } ]
+      post :login, params
+      assert_response :success
+      assert_template :login
+      assert_match /incorrect/i, flash[:message]
+    end
+    post :login, @eve_login
+    assert_response :redirect
+    assert_match /^#{LOCALHOST}/, response.redirect_url
+    assert_equal @eve_id, parse_query(response.redirect_url)['openid.identity']
+  end
+  
+  test "should deny unknown site via login" do
+    Directory.connection.mock_app(:ou => 'http://other.host/', :labeleduri => 'http://other.host/')
+    post :login, CHECKID.merge(@eve_login)
     assert_response :success
     assert_template :unknown_site
   end
   
   test "should allow correct identity" do
-    Directory.mock_app(LOCALHOST)
-    request.env['REMOTE_USER'] = 'eve'
-    get :login, CHECKID.merge({ 'openid.identity' => @eve_id, 'openid.claimed_id' => @eve_id })
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :login, CHECKID.merge(@eve_login).merge({ 'openid.identity' => @eve_id, 'openid.claimed_id' => @eve_id })
     assert_response :redirect
     assert_match /^#{LOCALHOST}/, response.redirect_url
     assert_equal @eve_id, parse_query(response.redirect_url)['openid.identity']
   end
   
   test "should deny wrong identity" do
-    Directory.mock_app(LOCALHOST)
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
     id = "http://#{request.host}/alice"
-    request.env['REMOTE_USER'] = 'eve'
-    get :login, CHECKID.merge({ 'openid.identity' => id, 'openid.claimed_id' => id })
+    post :login, CHECKID.merge(@eve_login).merge({ 'openid.identity' => id, 'openid.claimed_id' => id })
     assert_response :success
     assert_template :wrong_identity
   end
@@ -100,9 +154,8 @@ class ServerControllerTest < ActionController::TestCase
   }
   
   test "should allow with username via login" do
-    Directory.mock_app(LOCALHOST)
-    request.env['REMOTE_USER'] = 'bob'
-    get :login, CHECKID_AND_USERNAME
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :login, CHECKID_AND_USERNAME.merge(@bob_login)
     assert_response :redirect
     assert_match /^#{LOCALHOST}/, response.redirect_url
     params = parse_query(response.redirect_url)
@@ -126,9 +179,8 @@ class ServerControllerTest < ActionController::TestCase
   }
   
   test "should allow with groups via login" do
-    Directory.mock_app(LOCALHOST)
-    request.env['REMOTE_USER'] = 'bob'
-    get :login, CHECKID_AND_GROUPS
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :login, CHECKID_AND_GROUPS.merge(@bob_login)
     assert_response :redirect
     assert_match /^#{LOCALHOST}/, response.redirect_url
     params = parse_query(response.redirect_url)
@@ -140,9 +192,8 @@ class ServerControllerTest < ActionController::TestCase
   end
   
   test "should present form with many groups" do
-    Directory.mock_app(LOCALHOST)
-    request.env['REMOTE_USER'] = 'ted'
-    get :login, CHECKID_AND_GROUPS
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :login, CHECKID_AND_GROUPS.merge(@ted_login)
     assert_response :success
     assert_select "form[action=#{LOCALHOST}]"
     assert_select "input[name=openid.ax.value.ext0.40]", 1 do |elts|
@@ -151,9 +202,8 @@ class ServerControllerTest < ActionController::TestCase
   end
   
   test "should avoid form with compact groups" do
-    Directory.mock_app(LOCALHOST)
-    request.env['REMOTE_USER'] = 'ted'
-    get :login, CHECKID_AND_GROUPS.merge('openid.ax.type.groups' => 'http://id.meet.mit.edu/schema/groups-csv')
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :login, CHECKID_AND_GROUPS.merge(@ted_login).merge('openid.ax.type.groups' => 'http://id.meet.mit.edu/schema/groups-csv')
     assert_response :redirect
     assert_match /^#{LOCALHOST}/, response.redirect_url
     params = parse_query(response.redirect_url)

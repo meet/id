@@ -4,27 +4,23 @@ require 'openid/store/filesystem'
 class ServerController < ApplicationController
   
   protect_from_forgery :except => :openid
-  before_filter :authenticate, :only => :login
+  before_filter :session_expire
   before_filter :openid_req
   
   include OpenID::Server
   include OpenID::AX
-  AX_USER_MAP = {
-    AXSchema::Username => :username,
-    AXSchema::Groups => :groups,
-    AXSchema::GroupsCsv => :groups_csv
-  }
   
   # Handle a request to the OpenID endpoint.
   def openid
     if @oidreq.kind_of?(CheckIDRequest)
       
       if session[:username]
-        login
+        render_check_id_response
       elsif @oidreq.id_select and @oidreq.immediate
         render_response @oidreq.answer(false)
       else
-        redirect_to login_path(request.request_parameters)
+        flash[:openid_req] = @oidreq
+        render :login
       end 
       
       return
@@ -33,32 +29,21 @@ class ServerController < ApplicationController
     render_response server.handle_request(@oidreq)
   end
   
-  # Respond to an OpenID request with the user logged in.
+  # Handle a request with user login.
   def login
-    @user = User.find(session[:username])
-    @identity = user_url(@user.username)
-    
-    if not @oidreq.id_select and @identity != @oidreq.identity
-      render :wrong_identity and return
+    if params[:login] and
+        @user = Directory::User.find(params[:login][:username]) and
+        Directory.new.bind(:method => :simple,
+                           :username => @user.dn,
+                           :password => params[:login][:password])
+      session[:username] = @user.username
+      session[:valid] = Time.now + 5.minutes
+      openid
+    else
+      flash[:openid_req] = @oidreq
+      flash[:message] = 'Incorrect username or password.'
+      render :login
     end
-    
-    if not App.find(@oidreq.trust_root)
-      render :unknown_site and return
-    end
-    
-    response = @oidreq.answer(true, nil, @identity)
-    
-    if axreq = FetchRequest.from_openid_request(@oidreq)
-      axresponse = FetchResponse.new
-      axreq.attributes.each do |attrib|
-        if AX_USER_MAP.has_key? attrib.type_uri
-          axresponse.set_values(attrib.type_uri, [ @user.send(AX_USER_MAP[attrib.type_uri]) ].flatten)
-        end
-      end
-      response.add_extension(axresponse)
-    end
-    
-    render_response response
   end
   
   private
@@ -67,15 +52,53 @@ class ServerController < ApplicationController
       @server ||= Server.new(OpenID::Store::Filesystem.new(Rails.root.join('db').join('openid-store')), openid_url)
     end
     
-    def openid_req
-      begin
-        @oidreq = server.decode_request(params)
-      rescue ProtocolError => e
-        render :text => e.to_s, :status => 500
-        return
+    def session_expire
+      if not (session[:valid] and session[:valid] > Time.now)
+        session.delete(:username)
       end
     end
     
+    def openid_req
+      begin
+        @oidreq = server.decode_request(params)
+      rescue ProtocolError => @error
+        if @oidreq = flash.delete(:openid_req)
+          return
+        else
+          render :error, :status => 500 and return
+        end
+      end
+    end
+    
+    # Respond to an OpenID request with the user logged in.
+    def render_check_id_response
+      @user = Directory::User.find(session[:username])
+      @identity = user_url(@user.username)
+
+      if not @oidreq.id_select and @identity != @oidreq.identity
+        render :wrong_identity and return
+      end
+
+      if not Directory::App.find(@oidreq.trust_root)
+        render :unknown_site and return
+      end
+
+      response = @oidreq.answer(true, nil, @identity)
+
+      if axreq = FetchRequest.from_openid_request(@oidreq)
+        axresponse = FetchResponse.new
+        axreq.attributes.each do |attrib|
+          if AXSchema::MAP.has_key? attrib.type_uri
+            axresponse.set_values(attrib.type_uri, [ AXSchema::MAP[attrib.type_uri].call(@user) ].flatten)
+          end
+        end
+        response.add_extension(axresponse)
+      end
+
+      render_response response
+    end
+    
+    # Render an OpenID response.
     def render_response(oidresp)
       if oidresp.needs_signing
         signed_response = server.signatory.sign(oidresp)
