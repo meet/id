@@ -70,7 +70,7 @@ class ServerController < ApplicationController
           render :error, :status => 500 and return
         end
       ensure
-        @app = Directory::App.find(@oidreq.trust_root) if @oidreq
+        @app = Directory::App.find(@oidreq.trust_root) if @oidreq.kind_of?(CheckIDRequest)
       end
     end
     
