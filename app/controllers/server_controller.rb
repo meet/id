@@ -18,6 +18,8 @@ class ServerController < ApplicationController
         render_check_id_response
       elsif @oidreq.id_select and @oidreq.immediate
         render_response @oidreq.answer(false)
+      elsif not @app
+        render :unknown_site
       else
         flash[:openid_req] = @oidreq
         render :login
@@ -67,6 +69,8 @@ class ServerController < ApplicationController
         else
           render :error, :status => 500 and return
         end
+      ensure
+        @app = Directory::App.find(@oidreq.trust_root) if @oidreq
       end
     end
     
@@ -79,7 +83,7 @@ class ServerController < ApplicationController
         render :wrong_identity and return
       end
 
-      if not Directory::App.find(@oidreq.trust_root)
+      if not @app
         render :unknown_site and return
       end
 

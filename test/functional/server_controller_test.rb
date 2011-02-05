@@ -36,7 +36,14 @@ class ServerControllerTest < ActionController::TestCase
     'openid.return_to' => LOCALHOST
   }
   
+  test "should deny unknown site" do
+    post :openid, CHECKID
+    assert_response :success
+    assert_template :unknown_site
+  end
+  
   test "should require login" do
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
     post :openid, CHECKID
     assert_response :success
     assert_template :login
