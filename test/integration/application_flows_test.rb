@@ -75,7 +75,7 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     post login_url, CHECKID_AND_GROUPS.merge({ :login => { :username => 'anat', :password => 'magic' } })
     assert_response :redirect
     assert_match /^http:\/\/localhost:8001\/return\?/, response.redirect_url
-    assert_match /openid\.ax\.value\.ext0\..=allstaff/, response.redirect_url
+    assert_match /openid\.ax\.value\.ext0\..=all-staff/, response.redirect_url
     assert_match /openid\.ax\.value\.ext0\..=exec/, response.redirect_url
     assert_match /openid\.ax\.value\.ext0\..=founders/, response.redirect_url
   end
@@ -106,8 +106,8 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     params = parse_query(response.redirect_url)
     assert_equal '1', params[ns_key(params, AXSchema::USERNAME, 'count')]
     assert_equal 'aleksandra', params[ns_key(params, AXSchema::USERNAME, 'value') + '.1']
-    assert_equal 'allstaff', params[ns_key(params, AXSchema::GROUPS, 'value') + '.1']
-    assert_match /.*allstaff,.*mit/, params[ns_key(params, AXSchema::GROUPS_CSV, 'value') + '.1']
+    assert_equal 'all-staff', params[ns_key(params, AXSchema::GROUPS, 'value') + '.1']
+    assert_match /.*all-staff,.*mit/, params[ns_key(params, AXSchema::GROUPS_CSV, 'value') + '.1']
   end
   
 end
