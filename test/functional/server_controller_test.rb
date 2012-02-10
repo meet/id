@@ -20,7 +20,10 @@ class ServerControllerTest < ActionController::TestCase
     (1..40).each { |n| Directory.connection.mock_group(:cn => "group-#{n}", :memberuid => [ 'ted' ]) }
     Directory.connection.mock_bind('ted', 'secret')
     @ted_login = { :login => { :username => 'ted', :password => 'secret' } }
-    @ted_id = "http://#{request.host}/ted"
+    
+    Directory.connection.mock_user(:uid => 'guy', :givenname => 'Guy', :sn => 'Yug')
+    Directory.connection.mock_bind('guy', 'secret')
+    @guy_login = { :login => { :username => 'guy', :password => 'secret' } }
   end
   
   def teardown
@@ -215,6 +218,36 @@ class ServerControllerTest < ActionController::TestCase
     assert_match /^#{LOCALHOST}/, response.redirect_url
     params = parse_query(response.redirect_url)
     assert_match /group-1,group-2,.*,group-40/, params['openid.ax.value.ext0.1']
+  end
+  
+  FIRST_NAME = 'http://axschema.org/namePerson/first'
+  LAST_NAME = 'http://axschema.org/namePerson/last'
+  FULL_NAME = 'http://id.meet.mit.edu/schema/name-full'
+  CHECKID_AND_NAMES = {
+    'openid.ns' => 'http://specs.openid.net/auth/2.0',
+    'openid.mode' => 'checkid_setup',
+    'openid.identity' => 'http://specs.openid.net/auth/2.0/identifier_select',
+    'openid.claimed_id' => 'http://specs.openid.net/auth/2.0/identifier_select',
+    'openid.return_to' => LOCALHOST,
+    'openid.ns.ax' => 'http://openid.net/srv/ax/1.0',
+    'openid.ax.mode' => 'fetch_request',
+    'openid.ax.type.first' => FIRST_NAME,
+    'openid.ax.type.last' => LAST_NAME,
+    'openid.ax.type.full' => FULL_NAME,
+    'openid.ax.required' => 'first,last,full'
+  }
+  
+  test "should provide user's names" do
+    Directory.connection.mock_app(:ou => LOCALHOST, :labeleduri => LOCALHOST)
+    post :login, CHECKID_AND_NAMES.merge(@guy_login)
+    assert_response :redirect
+    assert_match /^#{LOCALHOST}/, response.redirect_url
+    params = parse_query(response.redirect_url)
+    expected = { FIRST_NAME => 'Guy', LAST_NAME => 'Yug', FULL_NAME => 'Guy Yug' }
+    for i in 0..2
+      assert_equal '1', params["openid.ax.count.ext#{i}"]
+      assert_equal expected[params["openid.ax.type.ext#{i}"]], params["openid.ax.value.ext#{i}.1"]
+    end
   end
   
 end

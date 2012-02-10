@@ -83,7 +83,10 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
   CHECKID_AND_ATTRS = CHECKID_AND_GROUPS.merge({
     'openid.ax.type.username' => 'http://axschema.org/namePerson/friendly',
     'openid.ax.type.groups-csv' => 'http://id.meet.mit.edu/schema/groups-csv',
-    'openid.ax.required' => 'username,groups,groups-csv'
+    'openid.ax.type.first' => 'http://axschema.org/namePerson/first',
+    'openid.ax.type.last' => 'http://axschema.org/namePerson/last',
+    'openid.ax.type.full' => 'http://id.meet.mit.edu/schema/name-full',
+    'openid.ax.required' => 'username,groups,groups-csv,first,last,full'
   })
   
   def ns_key(params, uri, type)
@@ -105,9 +108,12 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     assert_response :redirect
     params = parse_query(response.redirect_url)
     assert_equal '1', params[ns_key(params, AXSchema::USERNAME, 'count')]
-    assert_equal 'aleksandra', params[ns_key(params, AXSchema::USERNAME, 'value') + '.1']
+    assert_equal 'aleksandra', username = params[ns_key(params, AXSchema::USERNAME, 'value') + '.1']
     assert_equal 'all-staff', params[ns_key(params, AXSchema::GROUPS, 'value') + '.1']
     assert_match /.*all-staff,.*mit/, params[ns_key(params, AXSchema::GROUPS_CSV, 'value') + '.1']
+    assert_equal username.titleize, first = params[ns_key(params, AXSchema::FIRST_NAME, 'value') + '.1']
+    assert_match /[:upper:][:lower:]+/, last = params[ns_key(params, AXSchema::LAST_NAME, 'value') + '.1']
+    assert_equal "#{first} #{last}", params[ns_key(params, AXSchema::FULL_NAME, 'value') + '.1']
   end
   
 end
