@@ -14,4 +14,6 @@ Add an initializer for the LDAP directory:
 
   Directory.connect_with :base => ...
 
-And an initializer for the session secret token.
+And an initializer for the session secret token:
+
+  Id::Application.config.secret_token = ...
