@@ -171,8 +171,11 @@ class ServerControllerTest < ActionController::TestCase
     params = parse_query(response.redirect_url)
     assert_equal @bob_id, params['openid.identity']
     assert_equal USERNAME, params['openid.ax.type.ext0']
-    assert_equal '1', params['openid.ax.count.ext0']
-    assert_equal 'bob', params['openid.ax.value.ext0.1']
+    assert_equal 'bob', case params['openid.ax.count.ext0']
+      when '1' then params['openid.ax.value.ext0.1']
+      when nil then params['openid.ax.value.ext0']
+      else fail 'Unexpected username count'
+    end
   end
   
   GROUPS = 'http://id.meet.mit.edu/schema/groups'
@@ -217,7 +220,11 @@ class ServerControllerTest < ActionController::TestCase
     assert_response :redirect
     assert_match /^#{LOCALHOST}/, response.redirect_url
     params = parse_query(response.redirect_url)
-    assert_match /group-1,group-2,.*,group-40/, params['openid.ax.value.ext0.1']
+    assert_match /group-1,group-2,.*,group-40/, case params['openid.ax.count.ext0']
+      when '1' then params['openid.ax.value.ext0.1']
+      when nil then params['openid.ax.value.ext0']
+      else fail 'Unexpected groups-csv count'
+    end
   end
   
   FIRST_NAME = 'http://axschema.org/namePerson/first'
@@ -245,8 +252,11 @@ class ServerControllerTest < ActionController::TestCase
     params = parse_query(response.redirect_url)
     expected = { FIRST_NAME => 'Guy', LAST_NAME => 'Yug', FULL_NAME => 'Guy Yug' }
     for i in 0..2
-      assert_equal '1', params["openid.ax.count.ext#{i}"]
-      assert_equal expected[params["openid.ax.type.ext#{i}"]], params["openid.ax.value.ext#{i}.1"]
+      assert_equal expected[params["openid.ax.type.ext#{i}"]], case params["openid.ax.count.ext#{i}"]
+        when '1' then params["openid.ax.value.ext#{i}.1"]
+        when nil then params["openid.ax.value.ext#{i}"]
+        else fail "Unexpected count for #{params["openid.ax.type.ext#{i}"]}"
+      end
     end
   end
   

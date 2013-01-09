@@ -107,13 +107,12 @@ class ApplicationFlowsTest < ActionController::IntegrationTest
     post openid_url, CHECKID_AND_ATTRS
     assert_response :redirect
     params = parse_query(response.redirect_url)
-    assert_equal '1', params[ns_key(params, AXSchema::USERNAME, 'count')]
-    assert_equal 'aleksandra', username = params[ns_key(params, AXSchema::USERNAME, 'value') + '.1']
+    assert_equal 'aleksandra', username = params[ns_key(params, AXSchema::USERNAME, 'value')]
     assert_equal 'all-staff', params[ns_key(params, AXSchema::GROUPS, 'value') + '.1']
-    assert_match /.*all-staff,.*mit/, params[ns_key(params, AXSchema::GROUPS_CSV, 'value') + '.1']
-    assert_equal username.titleize, first = params[ns_key(params, AXSchema::FIRST_NAME, 'value') + '.1']
-    assert_match /[:upper:][:lower:]+/, last = params[ns_key(params, AXSchema::LAST_NAME, 'value') + '.1']
-    assert_equal "#{first} #{last}", params[ns_key(params, AXSchema::FULL_NAME, 'value') + '.1']
+    assert_match /.*all-staff,.*mit/, params[ns_key(params, AXSchema::GROUPS_CSV, 'value')]
+    assert_equal username.titleize, first = params[ns_key(params, AXSchema::FIRST_NAME, 'value')]
+    assert_match /[:upper:][:lower:]+/, last = params[ns_key(params, AXSchema::LAST_NAME, 'value')]
+    assert_equal "#{first} #{last}", params[ns_key(params, AXSchema::FULL_NAME, 'value')]
   end
   
 end
